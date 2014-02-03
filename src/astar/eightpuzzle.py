@@ -63,14 +63,22 @@ def reconstruct_path(came_from,node,start):
     p = []
     while True:
         p.append(node)
-        if node == start:
-            return reversed(p)
-        elif node in came_from: 
+        if node in came_from: 
             node = came_from[node]
         else:
-            return reversed(p)
+            return list(reversed(p))
+
+def validatePath(path,start,end):
+    valid = (path[0] == start and path[-1]==end)
+    if valid: 
+        for i in range(1,len(path)):
+            n = path[i]
+            p = path[i-1]
+            valid = valid and (n in neighbors(p))
+    return valid
 
 def astar(start,end,heuristic=lambda s:manhattan(s),dist=lambda c,n:1):
+    depth = {start:0}
     closedset = set()
     openset = {start}
     came_from = {}
@@ -81,7 +89,7 @@ def astar(start,end,heuristic=lambda s:manhattan(s),dist=lambda c,n:1):
     while len(openset) > 0:
         current = min(openset,key = lambda o: f_score[o])
         if current == end:
-            return reconstruct_path(came_from, current,start)
+            return came_from,depth
         
         openset.remove(current)
         closedset.add(current)
@@ -95,14 +103,46 @@ def astar(start,end,heuristic=lambda s:manhattan(s),dist=lambda c,n:1):
                 f_score[n] = g_score[n] +heuristic(n)
                 if not n in openset:
                     openset.add(n)
-    return []
+                    depth[n] = depth[current]+1
+    return None
 
+
+
+def breadth_first(start,d):
+    depth = {start:0}
+    openset = {start}
+    sd = set()
+    while len(openset)>0 :
+        for s in list(openset):
+            openset.remove(s)
+            v = depth[s]
+            if v == d:
+                sd.add(s)
+                continue
+            ns = neighbors(s)
+            for n in ns:
+                if not n in depth:
+                    openset.add(n)
+                    depth[n] = v+1
+    return sd,depth
 
 def test(start):
     end = "012345678"
-    path = astar(start,end)
-    print(len(path))
+    came_from,depth = astar(start,end)
+    
+    path = reconstruct_path(came_from, end, start)
+    print(depth[end],len(path),validatePath(path,start,end))
 
+def testDepth(start):
+    end = "012345678"
+    sd,depth = breadth_first(start, end)
+    
+    print(len(sd))
+    
 test("164870325")
+test("817456203")
+#testDepth("012345678",27)
+
+
         
     
