@@ -6,7 +6,6 @@ Created on Feb 11, 2014
 
 
 import re
-from unittest.test.test_result import __init__
 
 class Statement:
     def __init__(self,word,children,depth):
