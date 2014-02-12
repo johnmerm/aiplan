@@ -14,18 +14,45 @@ def substitute(prop,params,substitution):
         g_prop = g_prop.replace(p,l)
     return g_prop
 
-class Operator:
+
+class State:
+    def __iniit__(self,predicates,parent=None):
+        self.parent = parent
+        self.predicates = predicates
+class Action:
     def __init__(self,params,
-                        pos_preq,neg_preq,
-                        pos_effects,neg_effects,
-                        literals):
+                    pos_preq,neg_preq,
+                    pos_effects,neg_effects):
         self.params = params
-        self.literals = literals
         
         self.pos_preq = pos_preq
         self.neg_preq = neg_preq
         self.pos_effects = pos_effects
         self.neg_effects = neg_effects
+        
+#         self.graph = {}
+#         for (pn,t) in self.params:
+#             pg_preq = [p  for p in self.pos_preq if p.contains(pn)]
+#             ng_preq = [p  for p in self.neg_preq if p.contains(pn)]
+#             
+#             pg_effect = [p  for p in self.pos_effect if p.contains(pn)]
+#             ng_effect = [p  for p in self.neg_effect if p.contains(pn)]
+#             self.graph[pn] = (pg_preq,ng_preq,pg_effect,ng_effect)
+    
+    def expand(self,state):
+        pass
+    
+    
+        
+    
+
+class Operator(Action):
+    def __init__(self,params,
+                        pos_preq,neg_preq,
+                        pos_effects,neg_effects,
+                        literals):
+        super(Operator,self).__init__(params,pos_preq,neg_preq,pos_effects,neg_effects)
+        self.literals = literals
 
     def applicable(self,state):
         substitutions = list(itertools.product(self.literals,repeat=len(self.params)))

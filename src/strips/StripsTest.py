@@ -4,7 +4,7 @@ Created on Feb 4, 2014
 @author: giannis
 '''
 import unittest
-from Strips import *
+from Strips import Action,Operator,substitute
 
 class Test(unittest.TestCase):
     def setUp(self):
