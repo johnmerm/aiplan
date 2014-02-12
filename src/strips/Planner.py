@@ -8,6 +8,7 @@ from Strips import Action
 from timeit import itertools
 
 
+
 def ground(predicate,params,candidate):
     assert len(params) == len(candidate)
     
@@ -41,13 +42,16 @@ def expand(domain,problem,state):
                 gpe = {ground(p,action.params,candidate) for p in action.pos_effects}
                 gne = {ground(p,action.params,candidate) for p in action.neg_effects}
                 
-                n_state = state | gpe -gne
+                n_state = (state | gpe )-gne
                 ret.append((ac_name,candidate,n_state))
     return ret
 
 def graphplan(domain,problem,steps = None):
     actions = set()
     state = problem.state
+    
+    g_state = {s:0 for s in state}
+    
     p_goal = set(problem.goal[0])
     n_goal = set(problem.goal[1])
     
@@ -64,8 +68,10 @@ def graphplan(domain,problem,steps = None):
         if n_state == state and actions ==n_actions:
             break
         else:
+            diff_state = n_state - state
             state=n_state
             actions = n_actions
+            for s in diff_state:g_state[s] = i
             
         print('A'+str(i)+':'+str(len(actions)))
         print('P'+str(i)+':'+str(len(state)))
@@ -74,6 +80,9 @@ def graphplan(domain,problem,steps = None):
         check_pos = p_goal <=state
         check_neg = len(n_goal & state)==0
         i +=1
+    
+    hff = [g_state[g] if g in g_state else 65535 for g in p_goal]
+    return (check_pos,check_neg,sum(hff))
         
 
 f = open('problem.txt')           
@@ -86,6 +95,6 @@ s = ''.join(list(f))
 stat = parse(s)
 domain = Domain(stat)
 
-graphplan(domain, problem)
+print(graphplan(domain, problem))
                 
         
