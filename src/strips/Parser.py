@@ -6,7 +6,7 @@ Created on Feb 11, 2014
 
 
 import re
-from Strips import Action,State
+from Strips import Action
 
 class Statement:
     def __init__(self,word,children,depth):
