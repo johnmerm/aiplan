@@ -2,3 +2,6 @@
 /.pydevproject
 /target
 /bin
+*.pyc
+__init__.py
+/.settings
