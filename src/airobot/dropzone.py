@@ -81,11 +81,13 @@ delta = {
          (1, 0)  :1,
          (0, 1)  :1,
          (1, 1)  :1.5,
-         (-1, -1):1.5
+         (-1, -1):1.5,
+         (1, -1)  :1.5,
+         (-1, 1):1.5
         }
 
 def isallowed(grid,pos):
-    return 0<=pos[0]<len(grid) and 0<=pos[1]<len(grid[pos[0]]) and grid[pos[0]][pos[1]] == 0
+    return 0<=pos[0]<len(grid) and 0<=pos[1]<len(grid[pos[0]]) and (grid[pos[0]][pos[1]] == 0 or grid[pos[0]][pos[1]] == 'x')
 
 def expand(grid,node,cost,delta):
     #node is ((x,y),cost)
@@ -101,23 +103,23 @@ def expand(grid,node,cost,delta):
             children[ch] = cost+c 
     return children
 
-def merge(cost,children):
-    for (k,v) in children.items():
-        if not k in cost:
-            cost[k] = v
-        else:
-            cost[k] = min(cost[k],v)
     
-def search_cost(grid, init, goal, delta):
-    g_score = {tuple(init):0}
-    while True:
-        for (node,cost) in g_score.items():
-            g_new = expand(grid, node, cost, delta)
-            merge(g_score, g_new)
-            if goal in g_score:
-                return g_score[goal]
-        
-
+def dyn_prog(grid,init,goal,delta):
+    cost_mat = {goal:0}
+    check_mat = {goal}
+    
+    while not init in cost_mat:
+        for node in list(check_mat):
+            cost = cost_mat[node]
+            ch = expand(grid, node, cost, delta)
+            check_mat.remove(node)
+    
+            for (c,v) in ch.items():
+                if not c in cost_mat or v<cost_mat[c]:
+                    cost_mat[c] = v
+                    check_mat.add(c)
+    return cost_mat[init] 
+            
     
     
 def plan(warehouse, dropzone, todo):
@@ -130,7 +132,7 @@ def plan(warehouse, dropzone, todo):
                 if warehouse[x][y] == t:
                     goal = (x, y)
                     break
-        cost_go = search_cost(warehouse, dzone, goal, delta)
+        cost_go = dyn_prog(warehouse, dzone, goal, delta)
         cost += 2 * cost_go
         warehouse[goal[0]][goal[1]] = 0  
     return cost
@@ -178,7 +180,6 @@ dropzone1 = [2,0]
 todo1 = [2, 1]
 true_cost1 = 9
 
-print plan(warehouse1, dropzone1, todo1)
 # Test Case 2
 warehouse2 = [[   1, 2, 3, 4],
              [   0, 0, 0, 0],
@@ -207,10 +208,10 @@ dropzone4 = [4,6]
 todo4 = [13, 11, 6, 17]
 true_cost4 = 41
 
-#testing_suite = [[warehouse1, warehouse2, warehouse3, warehouse4],
-#                 [dropzone1, dropzone2, dropzone3, dropzone4],
-#                 [todo1, todo2, todo3, todo4],
-#                 [true_cost1, true_cost2, true_cost3, true_cost4]]
+testing_suite = [[warehouse1, warehouse2, warehouse3, warehouse4],
+                 [dropzone1, dropzone2, dropzone3, dropzone4],
+                 [todo1, todo2, todo3, todo4],
+                 [true_cost1, true_cost2, true_cost3, true_cost4]]
 
 
-#solution_check(testing_suite) #UNCOMMENT THIS LINE TO TEST YOUR CODE
+solution_check(testing_suite) #UNCOMMENT THIS LINE TO TEST YOUR CODE
