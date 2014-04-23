@@ -57,6 +57,7 @@ def slam(init,moves,Landmarks,measurements,measurement_factor=2,movement_factor 
 
 
 def online_slam(init,moves,Landmarks,measurements,measurement_factor=2,movement_factor =1):
+    labels0 = [0]+Landmarks
     labels = [0,1]+Landmarks
     i = 0
     if init != None:
@@ -103,28 +104,50 @@ def online_slam(init,moves,Landmarks,measurements,measurement_factor=2,movement_
         B = [O.get((0,0),0)]
         C = [j.get(0,0)]
         A = [O.get(labels[a],0) for a in range(1,len(labels))]
-        Oprime = [[O.get(labels[a],labels[b]) for b in range(1,len(labels))] for a in range(1,len(labels))]
+        Oprime = [[O.get((labels[a],labels[b]),0) for b in range(1,len(labels))] for a in range(1,len(labels))]
         jPrime = [j.get(a,0) for a in range(1,len(labels))]
-        Onew = Oprime - A.transpose()*B.inverse()*A
-        j_new = jPrime - A.transpose()*B.inverse()*C
         
-        O = {(labels[a],labels[b]):Onew.value[a][b] for b in range(len(labels)) for a in range(len(labels))}
-        j = {labels[a]:j_new.value[a][0] for a in range(len(labels))}
+        OPrimeMat  =matrix(Oprime)
+        AMat = matrix([A])
+        BMat = matrix([B])
+        CMat = matrix([C])
+        JPrimeMat = matrix([jPrime])
+        Onew = OPrimeMat - AMat.transpose()*BMat.inverse()*AMat
+        j_new = JPrimeMat - (AMat.transpose()*BMat.inverse()*CMat).transpose()
+        
+        O = {(labels0[a],labels0[b]):Onew.value[a][b] for b in range(len(labels0)) for a in range(len(labels0))}
+        j = {labels0[a]:j_new.value[0][a] for a in range(len(labels0))}
         
         i=0
     return labels,O,j
 
+def solve_slam(labels,O,j):
+    OMatrix = matrix( [[O.get((labels[a],labels[b]),0) for b in range(len(labels))] for a in range(len(labels))] )
+    jMAtrix =  matrix([ [j.get(a,0)] for a in range(len(labels))])
+    
+    m = OMatrix.inverse()*jMAtrix
+    return m
 
 Landmarks = ['l0', 'l1']
 init = 5
 moves = iter([7, 2])
 measurements = iter([{'l0':2}, {'l1':4}, {'l1':4}])
 
-labels,O,j = online_slam(init, moves, Landmarks, measurements)
+labels,O,j = slam(init, moves, Landmarks, measurements)
 
-for k in labels:
-    print(' '.join([str(O.get((k,l),0)) for l in labels]+['.',str(j.get(k,0))]))
-        
+# for k in labels:
+#     print(' '.join([str(O.get((k,l),0)) for l in labels]+['.',str(j.get(k,0))]))
+
+
+m = solve_slam(labels, O, j)
+print(m)
+
+
+moves = iter([7, 2])
+measurements = iter([{'l0':2}, {'l1':4}, {'l1':4}])
+labels,O,j = online_slam(init, moves, Landmarks, measurements)
+m = solve_slam(labels, O, j)
+print(m)
 
     
     
