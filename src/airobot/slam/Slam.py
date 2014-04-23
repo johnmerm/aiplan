@@ -123,15 +123,15 @@ def online_slam(init,moves,Landmarks,measurements,measurement_factor=2,movement_
 
 def solve_slam(labels,O,j):
     OMatrix = matrix( [[O.get((labels[a],labels[b]),0) for b in range(len(labels))] for a in range(len(labels))] )
-    jMAtrix =  matrix([ [j.get(a,0)] for a in range(len(labels))])
-    
-    m = OMatrix.inverse()*jMAtrix
+    jMAtrix =  matrix([[j.get(labels[a],0) for a in range(len(labels))]]).transpose()
+    Oinv = OMatrix.inverse()
+    m = Oinv*jMAtrix
     return m
 
 Landmarks = ['l0', 'l1']
 init = 5
 moves = iter([7, 2])
-measurements = iter([{'l0':2}, {'l1':4}, {'l1':4}])
+measurements = iter([{'l0':2}, {'l1':4}, {'l1':2}])
 
 labels,O,j = slam(init, moves, Landmarks, measurements)
 
@@ -144,7 +144,7 @@ print(m)
 
 
 moves = iter([7, 2])
-measurements = iter([{'l0':2}, {'l1':4}, {'l1':4}])
+measurements = iter([{'l0':2}, {'l1':4}, {'l1':2}])
 labels,O,j = online_slam(init, moves, Landmarks, measurements)
 m = solve_slam(labels, O, j)
 print(m)
