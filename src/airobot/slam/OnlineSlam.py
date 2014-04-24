@@ -336,9 +336,20 @@ class matrix:
     #
     # prints matrix (needs work!)
     #
-
+    def repr(self):
+        s='\n'
+        for i in range(len(self.value)):
+            s += '['+ ', '.join('%.3f'%x for x in self.value[i]) + ']\n' 
+        return s
     def __repr__(self):
-        return repr(self.value)
+        return self.repr()
+    
+    def __str__(self):
+        return self.repr()
+    
+        
+    
+   
 
 # ######################################################################
 
@@ -553,7 +564,7 @@ def slam(data, N, num_landmarks, motion_noise, measurement_noise):
     mu = Omega.inverse() * Xi
 
     # return the result
-    return mu
+    return mu,Omega,Xi
 
 # --------------------------------
 #
@@ -566,6 +577,82 @@ def online_slam(data, N, num_landmarks, motion_noise, measurement_noise):
     # Enter your code here!
     #
     #
+    dimPos = 2 # x,y per point
+    
+    # Set the dimension of the filter
+    dim = dimPos * (1 + num_landmarks)
+    list_landmarks = [2*dimPos + i for i in range(dimPos*num_landmarks)]
+    list_take = [dimPos+i for i in range(dimPos)]+list_landmarks
+    
+    list_B = [i for i in range(dimPos)]
+    list_expand = list_B+list_landmarks
+        
+    # make the constraint information matrix and vector
+    Omega = matrix()
+    Omega.zero(dim, dim)
+    Omega.value[0][0] = 1.0
+    Omega.value[1][1] = 1.0
+
+    Xi = matrix()
+    Xi.zero(dim, 1)
+    Xi.value[0][0] = world_size / 2.0
+    Xi.value[1][0] = world_size / 2.0
+    
+    # process the data
+
+    for k in range(len(data)):
+
+        # n is the index of the robot pose in the matrix/vector
+        n = k * dimPos 
+    
+        measurement = data[k][0]
+        motion      = data[k][1]
+    
+        # integrate the measurements
+        for i in range(len(measurement)):
+    
+            # m is the index of the landmark coordinate in the matrix/vector
+            m = dimPos * (1+measurement[i][0])
+    
+            # update the information maxtrix/vector based on the measurement
+            for b in range(dimPos):
+                Omega.value[b][b]     +=  1.0 / measurement_noise
+                Omega.value[m+b][m+b] +=  1.0 / measurement_noise
+                
+                Omega.value[b][b]     += -1.0 / measurement_noise
+                Omega.value[m+b][b]   += -1.0 / measurement_noise
+                
+                Xi.value[b][0]        += -measurement[i][1+b] / measurement_noise
+                Xi.value[m+b][0]      +=  measurement[i][1+b] / measurement_noise
+
+
+        # update the information maxtrix/vector based on the robot motion
+        
+        
+        #expand matrix
+        Omega = Omega.expand(dim+dimPos, dim+dimPos, list_expand)
+        Xi = Xi.expand(dim+dimPos, 1, list_expand, [0])
+        for b in range(2*dimPos): #x0,y0,x1,y1
+            Omega.value[b][b] +=  1.0 / motion_noise
+        for b in range(dimPos):
+            Omega.value[b  ][b+dimPos]   += -1.0 / motion_noise
+            Omega.value[b+2][b       ]   += -1.0 / motion_noise
+            Xi.value[b       ][0]        += -motion[b] / motion_noise
+            Xi.value[b+dimPos][0]        +=  motion[b] / motion_noise
+
+        #take A,B,C,OmegaPrime,XsiPrime
+        OmegaPrime = Omega.take(list_take)
+        XiPrime = Xi.take(list_take,[0])
+        C = Xi.take(list_B,[0])
+        B = Omega.take(list_B)
+        A = Omega.take(list_B,list_take)
+        
+        Omega = OmegaPrime - A.transpose()*B.inverse()*A
+        Xi = XiPrime- A.transpose()*B.inverse()*C
+    # compute best estimate
+    mu = Omega.inverse() * Xi
+
+    # return the result
     return mu, Omega # make sure you return both of these matrices to be marked correct.
 
 # --------------------------------
@@ -620,44 +707,45 @@ distance           = 20.0     # distance by which robot (intends to) move each i
 # online_slam function works as expected.
 
 def solution_check(result, answer_mu, answer_omega):
-
+    ret_result = True
     if len(result) != 2:
         print "Your function must return TWO matrices, mu and Omega"
-        return False
+        ret_result =  False
     
     user_mu = result[0]
     user_omega = result[1]
     
     if user_mu.dimx == answer_omega.dimx and user_mu.dimy == answer_omega.dimy:
         print "It looks like you returned your results in the wrong order. Make sure to return mu then Omega."
-        return False
+        ret_result =  False
     
     if user_mu.dimx != answer_mu.dimx or user_mu.dimy != answer_mu.dimy:
         print "Your mu matrix doesn't have the correct dimensions. Mu should be a", answer_mu.dimx, " x ", answer_mu.dimy, "matrix."
-        return False
+        ret_result =  False
     else:
         print "Mu has correct dimensions."
         
     if user_omega.dimx != answer_omega.dimx or user_omega.dimy != answer_omega.dimy:
         print "Your Omega matrix doesn't have the correct dimensions. Omega should be a", answer_omega.dimx, " x ", answer_omega.dimy, "matrix."
-        return False
+        ret_result =  False
     else:
         print "Omega has correct dimensions."
         
     if user_mu != answer_mu:
         print "Mu has incorrect entries."
-        return False
+        ret_result =  False
     else:
         print "Mu correct."
         
     if user_omega != answer_omega:
         print "Omega has incorrect entries."
-        return False
+        ret_result =  False
     else:
         print "Omega correct."
         
-    print "Test case passed!"
-    return True
+    if ret_result:
+        print "Test case passed!"
+    return ret_result
 
 # -----------
 # Test Case 1
@@ -716,3 +804,28 @@ answer_omega2      = matrix([[0.22871751620895048, 0.0, -0.11351536555795691, 0.
 #solution_check(result, answer_mu2, answer_omega2)
 
 
+
+def reduce(mu,Omega,Xi,N):
+    dimPos = 2
+    list_marks = list(range(dimPos*(N-1),mu.dimx))
+    mu_marks = mu.take(list_marks,[0])
+    mu_check = mu
+    while N > 1:
+        list_B = list(range(dimPos))
+        list_A = list(range(dimPos,Omega.dimx))
+        
+        OmegaPrime = Omega.take(list_A)
+        XiPrime = Xi.take(list_A,[0])
+        C = Xi.take(list_B,[0])
+        B = Omega.take(list_B)
+        A = Omega.take(list_A,list_B)
+            
+        Omega = OmegaPrime - A*B.inverse()*A.transpose()
+        Xi = XiPrime- A*B.inverse()*C
+        
+        mu_check = Omega.inverse()*Xi
+        N -= 1
+    return mu,Omega
+    
+(mu, Omega, Xi) = slam(testdata1, 5, 3, 2.0, 2.0)
+print(reduce(mu, Omega, Xi, 5))
