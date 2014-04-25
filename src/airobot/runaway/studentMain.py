@@ -59,6 +59,7 @@ from robot import *
 from math import *
 from matrix import *
 import random
+from pymongo.mongo_replica_set_client import OTHER
 
 
 # This is the function you have to write. The argument 'measurement' is a 
@@ -162,8 +163,80 @@ def estimate_next_pos_kalman(measurement, OTHER = None):
         xy_estimate = (x[0][0],x[1][0])
         return xy_estimate,OTHER
 
+def estimate_next_pos_ekf(measurement, OTHER = None):
+    if not OTHER:
+        class ExtendedKalmanFilter:
+            def __init__(self,x,f,h,F,H,P,u,R,I):
+                self.x = x 
+                self.f = f
+                self.h = h
+                self.P = P
+                self.u = u
+                self.F = F
+                self.H = H
+                self.R = R
+                self.I = I
+            
+            def update(self,ms):
+                #predict
+                F = self.F(self.x)
+                x = self.f(self.x)
+                P = F*self.P*F.transpose()
+                
+                #update model
+                H = self.H(self.x)
+                Z = matrix([list(ms)]).transpose()
+                y = Z- self.h(ms)
+                S = H*P*H.transpose()  + R
+                K = P*H.transpose()*S.inverse()
+                x = x + K*y
+                P = (I-K*H)*P
+                
+                self.x = x
+                self.P = P
+                return (x,P)
+        
+        x = [measurement[0],measurement[1],0,0,0]
+        
+        f = lambda x: matrix([[x[0]+x[2]*cos(x[3]+x[4])],
+                              [x[1]+x[2]*sin(x[3]+x[4])],
+                              [x[2]+x[4]],
+                              [x[3]],
+                              [x[4]] 
+                              ])
+        F = lambda x: matrix([ [1, 0, -x[2]*sin(x[3]+x[4]), cos(x[3]+x[4]), -x[2]*sin(x[3]+x[4]) ],
+                               [0, 1, x[2]*cos(x[3]+x[4]) , sin(x[3]+x[4]),  x[2]*cos(x[3]+x[4]) ],
+                               [0, 0, 1 ,0 ,1],
+                               [0, 0, 0, 1, 0],
+                               [0, 0, 0, 0, 1]
+                              ])
+        h = lambda m: matrix([[m[0]],
+                              [m[1]],
+                              [atan2(m[1],m[0])]
+                            ])
+                               
+        H = lambda x: matrix([[1,0,0,0,0],
+                              [0,1,0,0,0],
+                              [-x[1]/(x[0]**2+x[1]**2),x[0]/(x[0]**2+x[1]**2)]
+                              ]) 
+        I = matrix([[1. if i==j else 0 for j in range(5)]for i in range(5)])
+        
+        P = matrix([[1000. if i==j else 0 for j in range(5)]for i in range(5)])
+        R = matrix([[5. if i==j else 0 for j in range(2)]for i in range(2)])
+        
+        u = matrix([[0] for i in range(5)])
+        
+        
+        OTHER = ExtendedKalmanFilter(x, f, h, F, H, P, u, R, I)
+        return measurement,OTHER
+    else:
+        (x,P) = OTHER.update(measurement)
+        xy_estimate =(x[0],x[1])
+        return xy_estimate,OTHER
+    pass
+
 def estimate_next_pos(measurement, OTHER = None):
-    return estimate_next_pos_avg(measurement, OTHER)
+    return estimate_next_pos_ekf(measurement, OTHER)
 # A helper function you may find useful.
 def distance_between(point1, point2):
     """Computes distance between point1 and point2. Points are (x, y) pairs."""
