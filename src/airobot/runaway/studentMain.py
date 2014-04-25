@@ -67,42 +67,103 @@ import random
 # next position. The OTHER variable that your function returns will be 
 # passed back to your function the next time it is called. You can use
 # this to keep track of important information over time.
-def estimate_next_pos(measurement, OTHER = None):
+def estimate_next_pos_avg(measurement, OTHER = None):
+    if not OTHER:
+        OTHER={'idx':0,'measurement':measurement,'est_step':0,'est_diff_angle':0,'angle':0,'est_x':measurement[0],'est_y':measurement[1]}
+        return measurement,OTHER
+    else:
+        old_measurement = OTHER['measurement']
+        old_angle = OTHER['angle']
+        
+        idx = OTHER['idx']+1
+        diff = (measurement[0]-old_measurement[0],measurement[1]-old_measurement[1])
+        
+        meas_step =distance_between(measurement, old_measurement)
+        old_est_step = OTHER['est_step']
+        est_step = (old_est_step*(idx-1)+meas_step)/idx
+        
+        meas_angle = atan2(measurement[1], measurement[0])
+        old_angle = OTHER['angle']
+        est_diff_angle = meas_angle - old_angle
+        est_diff_angle = (est_diff_angle*(idx-1)+meas_angle)/idx
+        
+        est_angle = old_angle + est_diff_angle
+        
+        est_x = OTHER['est_x']+est_step*cos(est_angle)
+        est_y = OTHER['est_y']+est_step*sin(est_angle)
+        
+        OTHER['idx'] = idx
+        OTHER['est_x'] = est_x
+        OTHER['est_y'] = est_y
+        
+        OTHER['angle'] = meas_angle
+        OTHER['est_step'] = est_step
+        OTHER['est_diff_angle'] = est_diff_angle
+        OTHER['measurement']=measurement
+        print(est_step,est_diff_angle,est_angle)
+        return (est_x,est_y),OTHER
+        
+def estimate_next_pos_kalman(measurement, OTHER = None):
     """Estimate the next (x, y) position of the wandering Traxbot
     based on noisy (x, y) measurements."""
 
     # You must return xy_estimate (x, y), and OTHER (even if it is None) 
     # in this order for grading purposes.
+    
+    
+    class KalmanFilter:
+        def __init__(self,x,F,H,P,u,R,I):
+            self.x = x 
+            self.P = P
+            self.u = u
+            self.F = F
+            self.H = H
+            self.R = R
+            self.I = I
+        
+        def update(self,ms):
+            # measurement update
+            Z = matrix([list(ms)]).transpose()
+            y = Z- (self.H * self.x)
+            S = self.H * self.P * self.H.transpose() + self.R
+            K = self.P * self.H.transpose() * S.inverse()
+            self.x = self.x + (K * y)
+            self.P = (self.I - (K * self.H)) * self.P
+            # prediction
+            
+            self.x = (self.F * self.x) + self.u
+            self.P = self.F*self.P*self.F.transpose()
+            
+            return (self.x,self.P)
+    
+    #x = [x,y,dx,dy]   initial state (location and velocity)
+    #F = [1. 0. 1. 0.] next state function
+    #    [0. 1. 0. 1.]
+    #    [0. 0. 1. 0.]
+    #    [0. 0. 0. 1.]
+    #H = [1. 0. 0. 0.] # measurement function
+    #    [0. 1. 0. 0.]
     if not OTHER:
-        OTHER = {'start':measurement}
-        OTHER = {'angle_sum':0}
-        xy_estimate = measurement
-        step = 0
-        angle = 0
-    else :
-        old_measurement = OTHER['measurement']
-        diff = (measurement[0]-old_measurement[0],measurement[1]-old_measurement[1])
-        step = distance_between(measurement, old_measurement)
-        angle = atan2(diff[1], diff[0])
-        diff_angle = angle - OTHER['angle']
+        x = matrix([[measurement[0]],[measurement[1]],[0.],[0.]]) 
+        F = matrix([[1., 0.,1.,0.],[0.,1.,0.,1.],[0., 0.,1.,0.],[0.,0.,0.,1.]]) 
+        H = matrix([[1., 0.,0.,0.],[0.,1.,0.,0.]])
+        P = matrix([[1000. if i==j else 0 for j in range(x.dimx)] for i in range(x.dimx)]) # initial uncertainty
+        u = matrix([[0. for j in range(x.dimx)] for i in range(x.dimx)]) # external motion
         
-        est_angle = angle+diff_angle
-        est_x = measurement[0]+step*cos(est_angle) 
-        est_y = measurement[1]+step*sin(est_angle)
-        OTHER['est_angle'] = est_angle
+        measurement_uncertainty = 5.0
+        I = matrix([[1.if i==j else 0. for j in range(x.dimx)] for i in range(x.dimx)]) # identity matrix
+        R = matrix([[measurement_uncertainty if i==j else 0. for j in range(len(measurement))]for i in range(len(measurement))]) #measurement uncertainty
+        OTHER = KalmanFilter(x, F, H, P, u, R, I)
+        return measurement,OTHER
+    else:
+        OTHER.update(measurement)
+        x= OTHER.x.value
         
-        
-        xy_estimate = (est_x,est_y)
-        OTHER['xy_estimate'] = xy_estimate
-        
-    OTHER['step'] = step
-    OTHER['angle'] = angle
-    OTHER['angle_sum'] = (OTHER['angle_sum']+angle) % (2*pi)
-    OTHER['measurement']=measurement
-    
-    
-    return xy_estimate, OTHER 
+        xy_estimate = (x[0][0],x[1][0])
+        return xy_estimate,OTHER
 
+def estimate_next_pos(measurement, OTHER = None):
+    return estimate_next_pos_avg(measurement, OTHER)
 # A helper function you may find useful.
 def distance_between(point1, point2):
     """Computes distance between point1 and point2. Points are (x, y) pairs."""
@@ -127,6 +188,7 @@ def demo_grading(estimate_next_pos_fcn, target_bot, OTHER = None):
         target_bot.move_in_circle()
         true_position = (target_bot.x, target_bot.y)
         error = distance_between(position_guess, true_position)
+        
         if error <= distance_tolerance:
             print "You got it right! It took you ", ctr, " steps to localize."
             localized = True
@@ -146,7 +208,11 @@ def naive_next_pos(measurement, OTHER = None):
 
 # This is how we create a target bot. Check the robot.py file to understand
 # How the robot class behaves.
+# This is how we create a target bot. Check the robot.py file to understand
+# How the robot class behaves.
 test_target = robot(2.1, 4.3, 0.5, 2*pi / 34.0, 1.5)
-test_target.set_noise(0.0, 0.0, 0.0)
+measurement_noise = 0.05 * test_target.distance
+test_target.set_noise(0.0, 0.0, measurement_noise)
+
 
 demo_grading(estimate_next_pos, test_target)
