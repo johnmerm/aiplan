@@ -134,3 +134,13 @@ class matrix:
 
     def __repr__(self):
         return repr(self.value)
+    def __getitem__(self,n):
+        vn = self.value[n]
+        if len(vn) == 1:
+            return vn[0]
+        else:
+            return vn
+    
+    def __neg__(self):
+        value = [[-self.value[i][j] for j in range(self.dimy)] for i in range(self.dimx)]
+        return matrix(value)
