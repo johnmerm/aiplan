@@ -20,8 +20,8 @@ clear;
 
 dist = 1.5;
 turn = 2*pi / 34.0;
-measurement_noise = 0.15*dist;
-steps = 55;
+measurement_noise = 0.10*dist;
+steps = 15*35;
 init = [2.1; 4.3; 0.5];
 
 
@@ -47,6 +47,7 @@ h = @(x)[x(1);x(2)];
 x_vec = [init;dist;turn];
 for i=1:steps
     traj(i,:) = h(x_vec);
+    m(i,:) = traj(i,:);
     m(i,:) = normrnd(h(x_vec),measurement_noise);
     
     x_vec = f(x_vec);
@@ -54,76 +55,63 @@ end
 
 
 
-s = zeros(steps-1,1);
-a = zeros(steps-1,1);
+s = zeros(steps,1);
+s_avg = zeros(steps,1);
+a = zeros(steps,1);
+
+
 
 for i =2:steps
     dx = m(i,1)-m(i-1,1);
     dy = m(i,2)-m(i-1,2);
-    s(i-1) = sqrt(dx^2 + dy^2);
-    a(i-1) = atan2(dy,dx);
-end
-
-da = zeros(steps-2,1);
-th = zeros(steps-2,1);
-for i=2:steps-1
-    da(i-1) = a(i)-a(i-1);
-    th(i-1) = a(i)-i*da(i-1);
-end
-
-s_avg = zeros(steps-1,1);
-
-for i = 1:steps-1
-    s_avg(i) = sum(s(1:i))/i;
-end
-
-da_avg = zeros(steps-2,1);
-th_avg = zeros(steps-2,1);
-for i = 1:steps-2
-    da_avg(i) = sum(da(1:i))/i;
-    th_avg(i) = sum(th(1:i))/i;
-end
-
-
-
-x_est = zeros(steps,2);
-
-for j = 1:steps
-    x_est_temp = zeros(j,2);
-    for i = 1:j
-        if i < 3
-            x_est_temp(i,:) = m(i,:);
-        else
-            %dx = s_avg(i-1) * cos(th_avg(i-2)+(i-1)*da_avg(i-2));
-            %dy = s_avg(i-1) * sin(th_avg(i-2)+(i-1)*da_avg(i-2));
-
-            dx = s_avg(i-1) * cos(th_avg(j-2)+(i-1)*da_avg(j-2));
-            dy = s_avg(i-1) * sin(th_avg(j-2)+(i-1)*da_avg(j-2));
-
-            x_est_temp(i,1) = (x_est_temp(i-1,1)+dx + m(i,1))/2;
-            x_est_temp(i,2) = (x_est_temp(i-1,2)+dy + m(i,2))/2;
-        end
+    s(i) = sqrt(dx^2 + dy^2);
+    s_avg(i) = sum(s(2:i))/(i-1);
+    a(i) = atan2(dy,dx);    
+    
+    while abs(a(i)-a(i-1))>pi
+        a(i) = 2*pi+a(i);
     end
-    x_est(j,:) = x_est_temp(j,:);
 end
 
+
+da = zeros(steps,1);
+th = zeros(steps,1);
+da_avg = zeros(steps,1);
+th_avg = zeros(steps,1);
+for i = 3:steps
+    da(i) = a(i)-a(i-1);
+    th(i) = a(i) - (i-1)*da(i);
+    
+    da_avg(i) = sum(da(3:i))/(i-2);
+    th_avg(i) = sum(th(3:i))/(i-2);
+end
 
 x_predict = zeros(steps,2);
-x_predict(1:3,:) = m(1:3,:);
-for i = 3:steps-1
-    
-    dx = s_avg(i-1) * cos(th_avg(i-2)+(i-1)*da_avg(i-2));
-    dy = s_avg(i-1) * sin(th_avg(i-2)+(i-1)*da_avg(i-2));
-    x_predict(i+1,1) = x_est(i,1)+dx;
-    x_predict(i+1,2) = x_est(i,2)+dy;
-end
-plot(traj(:,1),traj(:,2),m(:,1),m(:,2),x_est(:,1),x_est(:,2),x_predict(:,1),x_predict(:,2))
+x_est = zeros(steps,2);
+error_measurement = zeros(steps,1);
+error_predict = zeros(steps,1);
+error_est = zeros(steps,1);
 
-error= zeros(steps,1);
 for i =1:steps
-    error(i) = sqrt ( (traj(i,1)-x_predict(i,1))^2+(traj(i,2)-x_predict(i,2))^2);
+    if i<3
+        x_est(i,:) = m(i,:);
+        x_predict(i,:) = m(i,:);
+    else
+        x_predict(i,1) = x_est(i-1,1)+s_avg(i-1)*cos(th_avg(i-1)+(i-1)*da_avg(i-1));
+        x_predict(i,2) = x_est(i-1,2)+s_avg(i-1)*sin(th_avg(i-1)+(i-1)*da_avg(i-1));
+        
+        
+        %measure - update
+        x_est(i,1) = (x_predict(i,1)+m(i,1))/2;
+        x_est(i,2) = (x_predict(i,2)+m(i,2))/2;
+        
+    end
+    error_measurement(i) = sqrt((m(i,1)-traj(i,1))^2 +(m(i,2)-traj(i,2))^2);
+    error_predict(i) = sqrt((x_predict(i,1)-traj(i,1))^2 +(x_predict(i,2)-traj(i,2))^2);
+    error_est(i) = sqrt((x_est(i,1)-traj(i,1))^2 +(x_est(i,2)-traj(i,2))^2);
 end
 
-            
-    
-       
+subplot(2,2,1),plot([2:steps],s(2:steps),[2:steps],s_avg(2:steps))
+subplot(2,2,2),plot([3:steps],th(3:steps),[3:steps],th_avg(3:steps))
+subplot(2,2,3),plot([1:steps],error_measurement,[1:steps],error_predict,[1:steps],error_est)
+subplot(2,2,4),plot(m(:,1),m(:,2),x_predict(:,1),x_predict(:,2),traj(:,1),traj(:,2))
