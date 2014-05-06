@@ -55,8 +55,8 @@
 
 # These import steps give you access to libraries which you may (or may
 # not) want to use.
-from robot import robot
-from math import pi,sqrt
+from robot import robot,angle_trunc
+from math import pi,sqrt,exp, atan2,sin,cos
 
 import random
 
@@ -69,73 +69,118 @@ import random
 # next position. The OTHER variable that your function returns will be 
 # passed back to your function the next time it is called. You can use
 # this to keep track of important information over time.
-def particle_init(N,position,meas_distance,noise = 0.1):
-    particles = []
-    for i in range(N):
-        x = random.gauss(position[0],noise)
-        y = random.gauss(position[1],noise)
-        distance = random.gauss(meas_distance,noise)
-        
-        heading = random.uniform(-pi,pi)
-        turning = random.uniform(-pi,pi)
-        
-        particle = robot(x, y, heading, turning, distance)
-        particles.append(particle)
-    return particles
 
-def evaluate(particles,measurement):
-    updates = {}
-    sm = 0
-    for i in range(len(particles)):
-        p = particles[i]
-        p.move_in_circle()
-        dist = distance_between(measurement, (p.x,p.y))
-        updates[p] = dist
-        sm += dist
+def Gaussian(mu, sigma, x):
     
-    updates = {p:(u/sm) for p,u in updates.items()}
-    sm = sum(updates.values()) #must be 1
+    # calculates the probability of x for 1-dim Gaussian with mean mu and var. sigma
+    return exp(- ((mu - x) ** 2) / (sigma ** 2) / 2.0) / sqrt(2.0 * pi * (sigma ** 2))
+
+
+def measurement_prob(p, measurement):
     
-    winner = min(updates.items(),key = lambda x:x[1])
+    # calculates how likely a measurement should be
     
-    resamples = {}
-    for p,u in updates.items():
-        ch = random.random()
+    
+    prob = Gaussian(p.x, p.measurement_noise, measurement[0])*Gaussian(p.y, p.measurement_noise, measurement[1])
+    return prob
+
+
+def avg(l):
+    return sum(l)/len(l)
+class predict:
+    def __init__(self,measurement):
+        self.measurements = [measurement]
+        self.alphas = None
+        
+    
+    def update(self,measurement):
+        x_prev = self.measurements[-1][0]
+        y_prev = self.measurements[-1][1]
+        dx = measurement[0]-x_prev
+        dy = measurement[1]-y_prev
+        
+        self.measurements.append(measurement)
+            
+        s = sqrt(dx**2+dy**2);
+        a = atan2(dy,dx);
+        if not self.alphas:
+            self.steps = [s]
+            self.alphas = [a]
+            self.d_alphas = []
+            self.thetas = []
+            self.x0 = []
+            self.y0 = []
+            return s,0,0,0,0
+        else:
+            self.steps.append(s)
+            a_prev = self.alphas[-1]
+            while abs(a - a_prev)>pi:
+                a += 2*pi
+            self.alphas.append(a)
+            da = a - a_prev
+            theta = a - len(self.alphas)*da
+            self.d_alphas.append(da)
+            self.thetas.append(theta)
+            
+            
+            
+            s_avg = avg(self.steps)
+            th_avg  =avg(self.thetas)
+            da_avg = avg(self.d_alphas)
+            
+            dxs = sum([s_avg*cos(th_avg+i*da_avg) for i in range(1,len(self.measurements))])
+            dys = sum([s_avg*sin(th_avg+i*da_avg) for i in range(1,len(self.measurements))])
+            
+            x0 = measurement[0]-dxs
+            y0 = measurement[1]-dys
+            
+            self.x0.append(x0)
+            self.y0.append(y0)
+            
+            return  s_avg,th_avg,da_avg,avg(self.x0),avg(self.y0)
+            
+    def predict(self):
+        if len(self.thetas)<1:
+            return None
         
         
-        if u <ch:
-            resamples[p] = u
+        s_avg = avg(self.steps)
+        th_avg  =avg(self.thetas)
+        da_avg = avg(self.d_alphas)
+        
+        x0 = avg(self.x0)
+        y0 = avg(self.y0)
+        
+        dxs = sum([s_avg*cos(th_avg+i*da_avg) for i in range(1,len(self.measurements)+1)])
+        dys = sum([s_avg*sin(th_avg+i*da_avg) for i in range(1,len(self.measurements)+1)])
+        
+        return (x0+dxs,y0+dys)
+        
+        
+            
     
-    
-    N = len(resamples)
-    if N == 0:
-        resamples[winner[0]] = winner[1]
-    
-    winner = min(resamples.items(),key = lambda x:x[1])
-    xy = (winner[0].x,winner[0].y)
-    return (xy,resamples.keys())
- 
+
+  
 def estimate_next_pos(measurement, OTHER = None):
+    #print(measurement)
+    
+    correct = (1.5,0.5,2*pi/34,2.1,4.3)
     if not OTHER:
-        OTHER = {'init_measurement':measurement}
+        OTHER =predict(measurement)
         return measurement,OTHER
     else:
-        if not 'particles' in OTHER:
-            old_measurement = OTHER['init_measurement']
-            init_distance = distance_between(measurement, old_measurement)
-            particles = particle_init(10,old_measurement,init_distance)
-            OTHER['particles'] = particles
-            
-            
-        else:
-            particles = OTHER['particles']
+        est = OTHER.update(measurement)
+        print([correct[i]-est[i] for i in range(len(est))])
+        xy_est = OTHER.predict()
+        if not xy_est:
+            xy_est = measurement
+        return xy_est,OTHER
+    
         
         
-        
-        estimate,particles = evaluate(particles, measurement)
-        OTHER['particles'] = particles
-        
-        return estimate,OTHER
+    
+    
+    
             
     
     
@@ -157,18 +202,20 @@ def demo_grading(estimate_next_pos_fcn, target_bot, OTHER = None):
     # if you haven't localized the target bot, make a guess about the next
     # position, then we move the bot and compare your guess to the true
     # next position. When you are close enough, we stop checking.
-    while not localized and ctr <= 10: 
+    while not localized and ctr <= 100: 
         ctr += 1
+        
+        
         measurement = target_bot.sense()
         position_guess, OTHER = estimate_next_pos_fcn(measurement, OTHER)
         target_bot.move_in_circle()
         true_position = (target_bot.x, target_bot.y)
         error = distance_between(position_guess, true_position)
-        print(error)
+        #print(error)
         if error <= distance_tolerance:
             print ("You got it right! It took you ", ctr, " steps to localize.")
             localized = True
-        if ctr == 10:
+        if ctr == 100:
             print ("Sorry, it took you too many steps to localize the target.")
     return localized
 
@@ -187,8 +234,8 @@ def naive_next_pos(measurement, OTHER = None):
 # This is how we create a target bot. Check the robot.py file to understand
 # How the robot class behaves.
 test_target = robot(2.1, 4.3, 0.5, 2*pi / 34.0, 1.5)
-measurement_noise = 0.05 * test_target.distance
-#test_target.set_noise(0.0, 0.0, measurement_noise)
+measurement_noise = .05 * test_target.distance
+test_target.set_noise(0.0, 0.0, measurement_noise)
 
 
 demo_grading(estimate_next_pos, test_target)
