@@ -71,102 +71,97 @@ import random
 # this to keep track of important information over time.
 
 def Gaussian(mu, sigma, x):
-    
     # calculates the probability of x for 1-dim Gaussian with mean mu and var. sigma
     return exp(- ((mu - x) ** 2) / (sigma ** 2) / 2.0) / sqrt(2.0 * pi * (sigma ** 2))
 
-
 def measurement_prob(p, measurement):
-    
     # calculates how likely a measurement should be
-    
-    
-    prob = Gaussian(p.x, p.measurement_noise, measurement[0])*Gaussian(p.y, p.measurement_noise, measurement[1])
+    h_func = lambda x:(x[0],x[1])
+    z = h_func(p)
+    prob = 1
+    for i in range(len(measurement)):
+        prob *= Gaussian(measurement[i], measurement_noise, z[i])
     return prob
-
 
 def avg(l):
     return sum(l)/len(l)
-class predict:
-    def __init__(self,measurement):
-        self.measurements = [measurement]
-        self.steps = []
-        self.alphas = None
-        self.est = []
-        
+
+
+measurement_noise = 0.2
+
+class ParticleFilter:
+    def __init__(self):
+        self.measurements = []
+        self.filters = None
     
     def update(self,measurement):
-        x_prev = self.measurements[-1][0]
-        y_prev = self.measurements[-1][1]
-        dx = measurement[0]-x_prev
-        dy = measurement[1]-y_prev
-        
         self.measurements.append(measurement)
-            
-        s = sqrt(dx**2+dy**2);
-        self.steps.append(s)
-        a = atan2(dy,dx);
-        s_avg = avg(self.steps)
-        
-        if not self.alphas:
-            
-            self.alphas = [a]
-            self.d_alphas = []
-            self.thetas = []
-            self.x0 = []
-            self.y0 = []
-            return s,0,0,0,0
-        else:
-            
-            a_prev = self.alphas[-1]
-            while abs(a - a_prev)>pi:
-                a += 2*pi
-            self.alphas.append(a)
-            da = a - a_prev
-            self.d_alphas.append(da)
-            da_avg = avg(self.d_alphas)
-            
-            theta = a - len(self.alphas)*da_avg
-            
-            self.thetas.append(theta)
-            th_avg = avg(self.thetas)
-            
-            
-            dxs = sum([s_avg*cos(th_avg+i*da_avg) for i in range(1,len(self.measurements))])
-            dys = sum([s_avg*sin(th_avg+i*da_avg) for i in range(1,len(self.measurements))])
-            
-            x0 = measurement[0]-dxs
-            y0 = measurement[1]-dys
-            
-            self.x0.append(x0)
-            self.y0.append(y0)
-            
-            return  s_avg,th_avg,da_avg,avg(self.x0),avg(self.y0)
-            
+        if len(self.measurements)==2:
+            self.filters = self.initialize(self.measurements)
+        elif len(self.measurements)>2:
+            self.filters = self.run(self.measurements)
+    
     def predict(self):
-        if len(self.thetas)<1:
+        fv = max(self.filters.items(),lambda v:v[1])
+        return fv[0][0],fv[0][1]
+    def run(self,filters,measurement):
+        upd = lambda x:(x[0]+x[3]*cos(x[2]+x[4]),
+                        x[1]+x[3]*sin(x[2]+x[4]),
+                        x[2]+x[4],
+                        x[3],
+                        x[4])
+        filters_2 ={upd(p) for p in filters.keys()} 
+        mm = {p:measurement_prob(p,measurement) for p in filters_2}
+        mm_sum = sum(mm.values())
+        mm = {p:(v/mm_sum) for p,v in mm.items()}
+        filters_3 = {p:v for (p,v) in mm.items() if v>random.random()}
+        return filters_3
+    
+    def initialize(self,measurements):
+        
+        if not len(measurements)==3:
             return None
         
+        dx=measurements[2][0]-measurements[1][0]
+        dy=measurements[2][1]-measurements[1][1]
         
-        s_avg = avg(self.steps)
-        th_avg  =avg(self.thetas)
-        da_avg = avg(self.d_alphas)
+        s = sqrt(dx**2 + dy**2)
+        a = atan2(dx,dy)
         
-        x0 = avg(self.x0)
-        y0 = avg(self.y0)
         
-        dxs = sum([s_avg*cos(th_avg+i*da_avg) for i in range(1,len(self.measurements)+1)])
-        dys = sum([s_avg*sin(th_avg+i*da_avg) for i in range(1,len(self.measurements)+1)])
+        dx2 = measurements[1][0]-measurements[0][0]
+        dy2 = measurements[1][1]-measurements[0][1]
+        s2 = sqrt(dx2**2 + dy2**2)
+        a2 = atan2(dx,dy)
         
-        return (x0+dxs,y0+dys)
+        s = (s+s2)/2
+        da = a2 - a
+        theta = a - da
         
-    
+        
+        N = 1000 #samples per dimension
+        
+        x0 = measurements[0][0]
+        y0 = measurements[0][1]
+        filters = {}
+        for i in range(N):
+            xp = random.gauss(x0,measurement_noise)
+            yp = random.gauss(y0,measurement_noise)
+            thp = random.gauss(theta,2*measurement_noise)
+            sp = random.gauss(s,measurement_noise)
+            dap = random.gauss(da,2*measurement_noise)
             
+            f = (xp,yp,thp,sp,dap)
+            filters[f]=1./N
             
+        filters = self.run(filters,measurements[1])
+        filters = self.run(filters,measurements[2])
+        return filters
+                
             
-    
-
+                 
   
+        
 def estimate_next_pos(measurement, OTHER = None):
     #print(measurement)
     
@@ -223,7 +218,7 @@ def demo_grading(estimate_next_pos_fcn, target_bot, OTHER = None):
             localized = True
         #if ctr == 100:
         #    print ("Sorry, it took you too many steps to localize the target.")
-    print ctr
+    
     return ctr
 
 # This is a demo for what a strategy could look like. This one isn't very good.
@@ -245,7 +240,4 @@ measurement_noise = .05 * test_target.distance
 test_target.set_noise(0.0, 0.0, measurement_noise)
 
 
-d = [demo_grading(estimate_next_pos, test_target) for i in range(100)]
-d_avg = sum(d)/len(d)
-print('\n')
-print(d_avg)
+print(demo_grading(estimate_next_pos, test_target))
