@@ -9,7 +9,15 @@ class matrix:
         self.dimy  = len(value[0])
         if value == [[]]:
             self.dimx = 0
-
+    
+    def __getitem__(self,n):
+        if (self.dimx ==1):
+            return self.value[0][n]
+        elif (self.dimy ==1):
+            return self.value[n][0]
+        else:
+            return self.value[n]
+    
     def zero(self, dimx, dimy):
         # check if valid dimensions
         if dimx < 1 or dimy < 1:

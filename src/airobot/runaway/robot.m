@@ -3,7 +3,7 @@ clear;
 dist = 1.5;
 turn = 2*pi / 34.0;
 measurement_noise = 0.05*dist;
-steps = 50;
+steps = 350;
 init = [2.1; 4.3; 0.5];
 
 
@@ -40,7 +40,7 @@ syms x y t s dt real
 
 x_sym = [x y t s dt]';
 
-x_vec = [2.1; 4.3; 0.5;0;0]
+x_vec = zeros(5,1);
 F = jacobian(f(x_sym),x_sym);
 H = jacobian(h(x_sym),x_sym);
 
@@ -50,11 +50,12 @@ error = zeros(steps,1);
 
 for i = 1:steps
     
-%     if mod(i,2) == 0
-%         x_vec = zeros(5,1);
-%         P = 1000*eye(5);
-%     end
     
+    Fv = eval(subs(F,x_sym,x_vec));
+    x_vec = f(x_vec);
+    P = Fv*P*Fv';
+    
+
     z = measurements(i,:)';
     Hv = eval(subs(H,x_sym,x_vec));
     y_vec = z-h(x_vec);
@@ -63,9 +64,7 @@ for i = 1:steps
     x_vec = x_vec + K*y_vec;
     P = (eye(5) - K*Hv)*P;
     
-    Fv = eval(subs(F,x_sym,x_vec));
-    x_vec = f(x_vec);
-    P = Fv*P*Fv';
+    
     
     estimates(i,:) = x_vec;
     error(i) = sqrt((trajectory(i,1)-estimates(i,1))^2 + (trajectory(i,2)-estimates(i,2))^2);
