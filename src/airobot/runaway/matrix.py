@@ -136,19 +136,72 @@ class matrix:
     
 
     def inverse(self):
-        aux = self.Cholesky()
-        res = aux.CholeskyInverse()
+        try:
+            aux = self.Cholesky()
+            res = aux.CholeskyInverse()
+        except ValueError:
+            res = invertMatrix(self)
         return res
 
     def __repr__(self):
         return repr(self.value)
-    def __getitem__(self,n):
-        vn = self.value[n]
-        if len(vn) == 1:
-            return vn[0]
-        else:
-            return vn
+    
     
     def __neg__(self):
         value = [[-self.value[i][j] for j in range(self.dimy)] for i in range(self.dimx)]
         return matrix(value)
+    def __len__(self):
+        if self.dimx == self.dimy or self.dimy == 1:
+            return self.dimx 
+        elif (self.dimx == 1):
+            return self.dimy
+        else:
+            return (self.dimx,self.dimy)
+    
+
+
+S = matrix([[-508.62686317011776, -1343.0506079993277],[-1343.050607999328, -3165.606134252321]])
+
+def addMultipleOfRowOfSquareMatrix(m, sourceRow, k, targetRow):
+    # add k * sourceRow to targetRow of matrix m
+    n = len(m)
+    rowOperator = matrix([[1 if i==j  else 0 for j in range(n)]for i in range(n)])
+    rowOperator[targetRow][sourceRow] = k
+    return rowOperator* m
+
+
+def multiplyRowOfSquareMatrix(m, row, k):
+    n = len(m)
+    rowOperator = matrix([[1 if i==j  else 0 for j in range(n)]for i in range(n)])
+    rowOperator[row][row] = k
+    return rowOperator* m
+
+def invertMatrix(m):
+    n = len(m)
+    assert(len(m) == len(m[0]))
+    inverse = matrix([[1 if i==j  else 0 for j in range(n)]for i in range(n)]) # this will BECOME the inverse eventually
+    for col in range(n):
+        # 1. make the diagonal contain a 1
+        diagonalRow = col
+#         assert(m[diagonalRow][col] != 0) # @TODO: actually, we could swap rows
+#                                          # here, or if no other row has a 0 in
+#                                          # this column, then we have a singular
+#                                          # (non-invertible) matrix.  Let's not
+#                                          # worry about that for now.  :-)
+        k = 1/m[diagonalRow][col]
+        
+        m = multiplyRowOfSquareMatrix(m, diagonalRow, k)
+        inverse = multiplyRowOfSquareMatrix(inverse, diagonalRow, k)
+        # 2. use the 1 on the diagonal to make everything else
+        #    in this column a 0
+        sourceRow = diagonalRow
+        for targetRow in xrange(n):
+            if (sourceRow != targetRow):
+                k = -m[targetRow][col]
+                m = addMultipleOfRowOfSquareMatrix(m, sourceRow, k, targetRow)
+                inverse = addMultipleOfRowOfSquareMatrix(inverse, sourceRow,
+                                                         k, targetRow)
+    # that's it!
+    return inverse
+
+print S.inverse()

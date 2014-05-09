@@ -28,7 +28,7 @@
 # not) want to use.
 from robot import *  # Check the robot.py tab to see how this works.
 from math import *
-from matrix import * # Check the matrix.py tab to see how this works.
+from matrix import matrix # Check the matrix.py tab to see how this works.
 import random
 
 # This is the function you have to write. Note that measurement is a 
@@ -93,7 +93,12 @@ class ExtendedKalman:
         y = z- self.h(self.x)
         
         S = H*self.P*H.transpose() + self.R
-        Si = S.inverse()
+        try:
+            Si = S.inverse()
+        except ValueError as v:
+            print(S)
+            raise v
+        
         K = self.P*H.transpose()*Si
         self.x = self.x + K*y
         self.P = (self.I - K*H)*self.P
@@ -112,8 +117,70 @@ def estimate_next_pos(measurement, OTHER = None):
         return next_xy_est,OTHER
 
 
-def next_move(hunter_position, hunter_heading, target_measurement, max_distance, OTHER):
-    naive_next_move(hunter_position, hunter_heading, target_measurement, max_distance, OTHER)
+def next_move(hunter_position, hunter_heading, target_measurement, max_distance, OTHER,init_wait_steps = 50):
+    if not OTHER:
+        OTHER = {'step':0,'ekf':ExtendedKalman()}
+    
+    step = OTHER['step']
+    ekf = OTHER['ekf']
+    
+    
+    est,P_est = ekf.update(target_measurement)
+    if step < init_wait_steps: #for the first 20 steps, accumulate measurements and proceed with naive
+        heading_to_target = get_heading(hunter_position, target_measurement)
+        heading_difference = heading_to_target - hunter_heading
+        turning =  heading_difference # turn towards the target
+        distance = max_distance # full speed ahead!
+    elif step == init_wait_steps:
+        #build the trajectory estimation
+        est_xy = ekf.h(est)
+        min_dist = 65535
+        est_tgt = est_xy
+        
+        period = ceil(2*pi/est[4])
+        period = int(period)
+        traj = []
+        est_tgt = est
+        min_dist = 65535
+        
+        for i in range(period):
+            
+            dist = distance_between(hunter_position, ekf.h(est_tgt))
+            if dist<min_dist:
+                min_dist = dist
+                tgt = ekf.h(est_tgt) 
+            traj.append([ekf.h(est_tgt),dist])
+            est_tgt = ekf.f(est_tgt)
+        
+        eta = ceil(min_dist/max_distance)
+        
+        heading_to_target = get_heading(hunter_position, tgt)
+        heading_difference = heading_to_target - hunter_heading
+        turning =  heading_difference # turn towards the target
+        distance = max_distance # full speed ahead!
+        OTHER['tgt'] = tgt
+        OTHER['eta'] = eta
+    else:
+        tgt = OTHER['tgt']
+        eta = OTHER['eta']
+        eta -=1
+        
+        if eta > 1:
+            distance = max_distance # full speed ahead!  
+        else:
+            tgt = ekf.h(ekf.f(est))
+            distance = distance_between(hunter_position, tgt) 
+            
+        heading_to_target = get_heading(hunter_position, tgt)
+        heading_difference = heading_to_target - hunter_heading
+        turning =  heading_difference # turn towards the target
+        
+        OTHER['eta'] = eta
+    
+    step +=1
+    OTHER['step'] = step
+         
+    return turning, distance, OTHER
 # A helper function you may find useful.
 def distance_between(point1, point2):
     """Computes distance between point1 and point2. Points are (x, y) pairs."""
@@ -206,4 +273,4 @@ target.set_noise(0.0, 0.0, measurement_noise)
 
 hunter = robot(-10.0, -10.0, 0.0)
 
-print demo_grading(hunter, target, naive_next_move)
+print demo_grading(hunter, target, next_move)
