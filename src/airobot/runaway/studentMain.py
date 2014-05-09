@@ -1,42 +1,25 @@
 # ----------
-# Part Two
+# Part Four
 #
-# Now we'll make the scenario a bit more realistic. Now Traxbot's
-# sensor measurements are a bit noisy (though its motions are still
-# completetly noise-free and it still moves in an almost-circle).
-# You'll have to write a function that takes as input the next
-# noisy (x, y) sensor measurement and outputs the best guess 
-# for the robot's next position.
+# Again, you'll track down and recover the runaway Traxbot. 
+# But this time, your speed will be about the same as the runaway bot. 
+# This may require more careful planning than you used last time.
 #
 # ----------
 # YOUR JOB
 #
-# Complete the function estimate_next_pos. You will be considered 
-# correct if your estimate is within 0.01 stepsizes of Traxbot's next
-# true position. 
+# Complete the next_move function, similar to how you did last time. 
 #
 # ----------
 # GRADING
 # 
-# We will make repeated calls to your estimate_next_pos function. After
-# each call, we will compare your estimated position to the robot's true
-# position. As soon as you are within 0.01 stepsizes of the true position,
-# you will be marked correct and we will tell you how many steps it took
-# before your function successfully located the target bot.
+# Same as part 3. Again, try to catch the target in as few steps as possible.
 
-# These import steps give you access to libraries which you may (or may
-# not) want to use.
-from robot import *  # Check the robot.py tab to see how this works.
+from robot import *
 from math import *
-from matrix import matrix # Check the matrix.py tab to see how this works.
+from matrix import matrix
 import random
 
-# This is the function you have to write. Note that measurement is a 
-# single (x, y) point. This function will have to be called multiple
-# times before you have enough information to accurately predict the
-# next position. The OTHER variable that your function returns will be 
-# passed back to your function the next time it is called. You can use
-# this to keep track of important information over time.
 class ExtendedKalman:
     ''' An extended Kalman Filter with state vars x,y,th,s,dth and observable x,y'''
     def __init__(self):
@@ -117,7 +100,22 @@ def estimate_next_pos(measurement, OTHER = None):
         return next_xy_est,OTHER
 
 
-def next_move(hunter_position, hunter_heading, target_measurement, max_distance, OTHER,init_wait_steps = 50):
+def next_move(hunter_position, hunter_heading, target_measurement, max_distance, OTHER):
+    if not OTHER:
+        OTHER = ExtendedKalman()
+        
+    est = OTHER.update(target_measurement)
+    
+    xy_est = OTHER.h(OTHER.f(est))
+    heading_to_target = get_heading(hunter_position, xy_est)
+    heading_difference = heading_to_target - hunter_heading
+    turning =  heading_difference # turn towards the target
+    distance = min(max_distance,distance_between(hunter_position, xy_est)) # full speed ahead!
+
+    return turning, distance, OTHER
+ 
+
+def next_move_super(hunter_position, hunter_heading, target_measurement, max_distance, OTHER,init_wait_steps = 50):
     if not OTHER:
         OTHER = {'step':0,'ekf':ExtendedKalman()}
     
@@ -131,57 +129,54 @@ def next_move(hunter_position, hunter_heading, target_measurement, max_distance,
         heading_difference = heading_to_target - hunter_heading
         turning =  heading_difference # turn towards the target
         distance = max_distance # full speed ahead!
-    elif step == init_wait_steps:
-        #build the trajectory estimation
-        est_xy = ekf.h(est)
-        min_dist = 65535
-        est_tgt = est_xy
-        
-        period = ceil(2*pi/est[4])
-        period = int(period)
-        traj = []
-        est_tgt = est
-        min_dist = 65535
-        
-        for i in range(period):
+    elif step >= init_wait_steps:
+        if step == init_wait_steps:
+            #build the trajectory estimation
+            est_xy = ekf.h(est)
+            min_dist = 65535
+            est_tgt = est_xy
             
-            dist = distance_between(hunter_position, ekf.h(est_tgt))
-            if dist<min_dist:
-                min_dist = dist
-                tgt = ekf.h(est_tgt) 
-            traj.append([ekf.h(est_tgt),dist])
-            est_tgt = ekf.f(est_tgt)
-        
-        eta = ceil(min_dist/max_distance)
-        
-        heading_to_target = get_heading(hunter_position, tgt)
-        heading_difference = heading_to_target - hunter_heading
-        turning =  heading_difference # turn towards the target
-        distance = max_distance # full speed ahead!
-        OTHER['tgt'] = tgt
-        OTHER['eta'] = eta
-    else:
-        tgt = OTHER['tgt']
-        eta = OTHER['eta']
-        eta -=1
+            period = ceil(2*pi/est[4])
+            period = int(period)
+            traj = []
+            est_tgt = est
+            min_dist = 65535
+            
+            for i in range(period):
+                
+                dist = distance_between(hunter_position, ekf.h(est_tgt))
+                if dist<min_dist:
+                    min_dist = dist
+                    tgt = ekf.h(est_tgt) 
+                traj.append([ekf.h(est_tgt),dist])
+                est_tgt = ekf.f(est_tgt)
+            
+            eta = ceil(min_dist/max_distance)
+            OTHER['tgt'] = tgt
+            OTHER['eta'] = eta
+        else:
+            tgt = OTHER['tgt']
+            eta = OTHER['eta']
+            eta -=1
+            OTHER['eta'] = eta
         
         if eta > 1:
             distance = max_distance # full speed ahead!  
         else:
-            tgt = ekf.h(ekf.f(est))
+            #tgt = ekf.h(ekf.f(est))
             distance = distance_between(hunter_position, tgt) 
             
         heading_to_target = get_heading(hunter_position, tgt)
         heading_difference = heading_to_target - hunter_heading
         turning =  heading_difference # turn towards the target
         
-        OTHER['eta'] = eta
+        
     
     step +=1
     OTHER['step'] = step
          
     return turning, distance, OTHER
-# A helper function you may find useful.
+
 def distance_between(point1, point2):
     """Computes distance between point1 and point2. Points are (x, y) pairs."""
     x1, y1 = point1
@@ -192,7 +187,7 @@ def demo_grading(hunter_bot, target_bot, next_move_fcn, OTHER = None):
     """Returns True if your next_move_fcn successfully guides the hunter_bot
     to the target_bot. This function is here to help you understand how we 
     will grade your submission."""
-    max_distance = 1.94 * target_bot.distance # 1.94 is an example. It will change.
+    max_distance = 0.98 * target_bot.distance # 0.98 is an example. It will change.
     separation_tolerance = 0.02 * target_bot.distance # hunter must be within 0.02 step size to catch target
     caught = False
     ctr = 0
@@ -274,3 +269,8 @@ target.set_noise(0.0, 0.0, measurement_noise)
 hunter = robot(-10.0, -10.0, 0.0)
 
 print demo_grading(hunter, target, next_move)
+
+
+
+
+

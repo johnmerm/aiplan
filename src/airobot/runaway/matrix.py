@@ -204,4 +204,3 @@ def invertMatrix(m):
     # that's it!
     return inverse
 
-print S.inverse()
