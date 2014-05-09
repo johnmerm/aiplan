@@ -53,11 +53,11 @@ class ExtendedKalman:
                                   [0.,1.,0.,0.,0.]])
         
         
-        self.P =matrix([[100.,0.,0.,0.,0.],
-                        [0.,100.,0.,0.,0.],
-                        [0.,0.,100.,0.,0.],
-                        [0.,0.,0.,100.,0.],    #we are certain abouth initial th
-                        [0.,0.,0.,0.,100.]])
+        self.P =matrix([[1000.,0.,0.,0.,0.],
+                        [0.,1000.,0.,0.,0.],
+                        [0.,0.,1000.,0.,0.],
+                        [0.,0.,0.,1000.,0.],    
+                        [0.,0.,0.,0.,1000.]])
          
         self.R = matrix([[15.,0.],[0.,15.]]) #set noise to 5
         self.I = matrix([[1 if i==j else 0. for j in range(5)] for i in range(5)])
@@ -104,7 +104,7 @@ def next_move(hunter_position, hunter_heading, target_measurement, max_distance,
     if not OTHER:
         OTHER = ExtendedKalman()
         
-    est = OTHER.update(target_measurement)
+    est,P_est = OTHER.update(target_measurement)
     
     xy_est = OTHER.h(OTHER.f(est))
     heading_to_target = get_heading(hunter_position, xy_est)
@@ -115,7 +115,7 @@ def next_move(hunter_position, hunter_heading, target_measurement, max_distance,
     return turning, distance, OTHER
  
 
-def next_move_super(hunter_position, hunter_heading, target_measurement, max_distance, OTHER,init_wait_steps = 50):
+def next_move_super(hunter_position, hunter_heading, target_measurement, max_distance, OTHER,init_wait_steps = 150):
     if not OTHER:
         OTHER = {'step':0,'ekf':ExtendedKalman()}
     
@@ -136,7 +136,11 @@ def next_move_super(hunter_position, hunter_heading, target_measurement, max_dis
             min_dist = 65535
             est_tgt = est_xy
             
-            period = ceil(2*pi/est[4])
+            
+            da = est[4] % (2*pi)
+            if da<0:
+                da += 2*pi
+            period = ceil(2*pi/da)
             period = int(period)
             traj = []
             est_tgt = est
@@ -162,10 +166,12 @@ def next_move_super(hunter_position, hunter_heading, target_measurement, max_dis
         
         if eta > 1:
             distance = max_distance # full speed ahead!  
+        elif eta <0:
+            tgt = ekf.h(ekf.f(est))
+            distance = distance_between(hunter_position, tgt)
         else:
-            #tgt = ekf.h(ekf.f(est))
             distance = distance_between(hunter_position, tgt) 
-            
+        
         heading_to_target = get_heading(hunter_position, tgt)
         heading_difference = heading_to_target - hunter_heading
         turning =  heading_difference # turn towards the target

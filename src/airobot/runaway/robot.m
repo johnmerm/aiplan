@@ -3,7 +3,7 @@ clear;
 dist = 1.5;
 turn = 2*pi / 34.0;
 measurement_noise = 0.05*dist;
-steps = 350;
+steps = 200;
 init = [2.1; 4.3; 0.5];
 
 
@@ -35,7 +35,7 @@ end
 
 
 %EKF estimation
-estimates = zeros(steps,5);
+estimates = [0 0 2*pi*rand 2*rand 2*pi*rand];
 syms x y t s dt real
 
 x_sym = [x y t s dt]';
@@ -44,8 +44,8 @@ x_vec = zeros(5,1);
 F = jacobian(f(x_sym),x_sym);
 H = jacobian(h(x_sym),x_sym);
 
-P = 1000*eye(5);
-R = measurement_noise*eye(2);
+P = 10000*eye(5);
+R = 3*measurement_noise*eye(2);
 error = zeros(steps,1);
 
 for i = 1:steps
@@ -80,47 +80,5 @@ plot(1:steps,trajectory(:,4),1:steps,estimates(:,4));
 subplot(3,2,4),
 plot(1:steps,trajectory(:,5),1:steps,estimates(:,5));
 
-subplot(3,2,5),
-plot(error);
-
-
-% %Linear Kalman 
-% estimates_linear = zeros(steps,2);
-% error_linear = zeros(steps,1);
-% F = [1 0 1 0;0 1 0 1;0 0 1 0;0 0 0 1];
-% H = [1 0 0 0 ;0 1 0 0];
-% P = 1000*eye(4);
-% R = measurement_noise*eye(2);
-% 
-% x_vec = zeros(4,1);
-% for i = 1:steps
-%     
-% %     if mod(i,2) == 0
-% %         x_vec = zeros(4,1);
-% %         P = 1000*eye(4);
-% %     end
-%     
-%     z = measurements(i,:)';
-%     y_vec = z - H*x_vec;
-%     
-%     S = H*P*H' + R;
-%     K = P*H'*pinv(S);
-%     x_vec = x_vec + K*y_vec;
-%     P = (eye(4) - K*H)*P;
-%     
-%     x_vec = F*x_vec;
-%     P = F*P*F';
-%     
-%     estimates_linear(i,:) = h(x_vec);
-%     error_linear(i) = (trajectory(i,1)-estimates_linear(i,1))^2 + (trajectory(i,2)-estimates_linear(i,2))^2;
-%     
-% end
-% 
-% 
-% 
-% subplot(2,2,3),
-% plot(trajectory(:,1),trajectory(:,2),measurements(:,1),measurements(:,2),estimates_linear(:,1),estimates_linear(:,2));
-% subplot(2,2,4),
-% plot(1:steps,error_linear);
-% 
+subplot(3,2,5),plot(error);
 

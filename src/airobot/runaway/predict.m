@@ -20,8 +20,8 @@ clear;
 
 dist = 1.5;
 turn = 2*pi / 34.0;
-measurement_noise = 0.10*dist;
-steps = 15*35;
+measurement_noise = dist;
+steps = 5*35;
 init = [2.1; 4.3; 0.5];
 
 
