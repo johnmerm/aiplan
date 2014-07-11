@@ -149,22 +149,35 @@ class Test(unittest.TestCase):
                    [0,st,ct]
                    ])
         we = array([[1,0,0]]).T
-        
         Re = exp(we, t)
         
         assert array_equal(R, Re)
         
         p = array([[2,1,1]]).T
+        ue = array([[3.1831,1.0388,2.0388]]).T
+        
         
         T= composeTrans(R,p)
         
         (w,u,theta,h) = log(T)
-        assert array_equal(we, w) and theta == t
         
         Tm = exp(composeScrew(w, u),theta)
+        Te = exp(composeScrew(we, ue),t)
+        print("Testing")
+        print(T-Tm)
+        print("Testing Again")
+        print(T-Te)
+        print ("testing Done")
         
-        print(T==Tm)
-        assert array_equal(T, Tm)
+        Ge = array([  
+                    [1.59155,   0.00000,   0.00000],
+                    [0.00000,   1.53884,  -0.50000],
+                    [0.00000,   0.50000,   1.53884]
+                    ])
+        
+        
+        
+
         
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testName']

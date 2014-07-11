@@ -151,7 +151,10 @@ def log(T):
             w = ibra(W)
         
         W2 = np.dot(W,W)
-        G = (1/theta*np.eye(3)+1/2*W+(1/theta-cot(theta/2)/2)*W2)
+        G1 = 1./theta*np.eye(3)
+        G2 = 0.5*W
+        G3 = (1./theta-cot(theta/2)/2)*W2
+        G = G1+G2+G3
         
         u = np.dot(G,p)
     
