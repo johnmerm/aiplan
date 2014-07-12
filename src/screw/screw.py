@@ -155,7 +155,8 @@ def log(T):
         G2 = 0.5*W
         G3 = (1./theta-cot(theta/2)/2)*W2
         G = G1+G2+G3
-        
+        # This corrrects the bug!!!!!
+        G = G.T
         u = np.dot(G,p)
     
     h = np.dot(w.T,u)
