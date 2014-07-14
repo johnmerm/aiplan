@@ -155,7 +155,7 @@ def log(T):
         G2 = 0.5*W
         G3 = (1./theta-cot(theta/2)/2)*W2
         G = G1+G2+G3
-        # This corrrects the bug!!!!!
+        # This corrects the bug!!!!!
         G = G.T
         u = np.dot(G,p)
     
@@ -163,6 +163,17 @@ def log(T):
     return (w,u,theta,h)
           
             
-        
+def Jacobian(As,thetas):
+    assert len(As) == len(thetas)
+    J = np.array(As[0])
+    P = adj(exp(As[0], thetas[0]))
+                 
+    for i in range(1,len(As)):
+        Ai = As[i]
+        theta_i = thetas[i]
+        Ji = np.dot(P,Ai)
+        P = np.dot(P,adj(exp(Ai,theta_i)))
+        J = np.append(J, Ji, axis=1)
+    return J
         
         

@@ -1,16 +1,24 @@
 import unittest
 
-from screw import bra,ibra,breakTrans,composeTrans,composeScrew,breakScrew,exp,adj,log
+from screw.screw import bra,ibra,breakTrans,composeTrans,composeScrew,breakScrew,exp,adj,log,Jacobian
 from sympy import symbols,cos,sin
-from numpy import  array,array_equal,allclose
+from numpy import  array,array_equal,less_equal
 
 import numpy
 import math
 
-class Test(unittest.TestCase):
+'''
+    Reimplement allclose as sympy does not implement isinf and numpy.allclose requires isinf
+    http://stackoverflow.com/questions/11620239/numpy-allclose-and-multiprecision-with-mpmath
+'''
+def allclose(x, y, rtol=1.e-5, atol=1.e-8):
+    t = less_equal(abs(x-y), atol + rtol * abs(y))
+    t=  all([all(tr) for tr in t])
+    return t
     
      
-    
+class Test(unittest.TestCase):
+     
     def testBraIBra(self):
         (a,b,c,d,e,f,g,h,i,j,k,l) = symbols('a b c d e f g h i j k l')
         
@@ -154,31 +162,27 @@ class Test(unittest.TestCase):
         assert array_equal(R, Re)
         
         p = array([[2,1,1]]).T
-        ue = array([[3.1831,1.0388,2.0388]]).T
-        
         
         T= composeTrans(R,p)
         
         (w,u,theta,h) = log(T)
         
         Tm = exp(composeScrew(w, u),theta)
-        Te = exp(composeScrew(we, ue),t)
-        print("Testing")
-        print(T-Tm)
-        print("Testing Again")
-        print(T-Te)
-        print ("testing Done")
-        
-        Ge = array([  
-                    [1.59155,   0.00000,   0.00000],
-                    [0.00000,   1.53884,  -0.50000],
-                    [0.00000,   0.50000,   1.53884]
-                    ])
         
         
+        assert allclose(T,Tm)
+    
+    def testJacobian(self):
+        thetas = [math.pi/3,math.pi/4,math.pi/5]
+        As = [
+              numpy.array([[0,0,0,0,0,1]]).T,
+              numpy.array([[0,1,0,-1,1,0]]).T,
+              numpy.array([[0,0,1,1,0,0]]).T
+            ]
+        J = Jacobian(As, thetas)
         
-
-        
+        Je = None #TODO: Fill the test case
+        assert allclose(J, Je)
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testName']
     unittest.main()
